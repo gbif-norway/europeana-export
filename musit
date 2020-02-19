@@ -1,0 +1,32 @@
+#!/bin/bash
+
+convert() {
+  # echo "> $1"
+  # pushd src >/dev/null
+  # curl -s -O http://www.unimus.no/nedlasting/datasett/$1.gz
+  # gunzip -f $1.gz
+  # popd >/dev/null
+  ./norvegiana -p "$2" -t "$3" </site/gbif/dwc/result/$1 >xml/$1.xml
+}
+
+convert vascular_o "Natural History Museum, Oslo" "Herbarium sheet, "
+convert moss_trh "NTNU University Museum" "Herbarium sheet, "
+convert entomology_nhmo "Natural History Museum, Oslo"
+convert entomology_nhmo_x "Natural History Museum, Oslo"
+convert moss_o "Natural History Museum, Oslo" "Herbarium sheet, "
+convert fungus_o "Natural History Museum, Oslo" "Herbarium sheet, "
+convert algae_trh "NTNU University Museum" "Herbarium sheet, "
+convert vascular_bg "University Museum of Bergen" "Herbarium sheet, "
+convert fungus_trh "NTNU University Museum" "Herbarium sheet, "
+convert entomology_zmbn "University Museum of Bergen"
+convert fungus_bg "University Museum of Bergen" "Herbarium sheet, "
+convert fungus_trom "Tromsø University Museum" "Herbarium sheet, "
+convert lichens_trh "NTNU University Museum" "Herbarium sheet, "
+convert lichens_trom "Tromsø University Museum" "Herbarium sheet, "
+convert moss_trom "Tromsø University Museum" "Herbarium sheet, "
+convert vascular_kmn "Agder Natural History Museum and Botanical Garden" "Herbarium sheet, "
+convert vascular_svg "Museum of Archaeology, Stavanger" "Herbarium sheet, "
+convert vascular_trh "NTNU University Museum" "Herbarium sheet, "
+convert vascular_trom "Tromsø University Museum" "Herbarium sheet, "
+convert algae_kmn "Agder Natural History Museum and Botanical Garden" "Herbarium sheet, "
+

@@ -1,0 +1,149 @@
+#!/usr/bin/perl
+
+# Spiser occurrence-data (DwC) fra MUSIT og kaster opp XML til Norvegiana
+
+use strict;
+use warnings;
+use utf8;
+
+use open qw/:std :utf8/;
+
+use Getopt::Std;
+use Parse::CSV;
+use XML::Writer;
+use File::Slurp;
+use LWP::Simple;
+use File::Touch;
+
+# use Image::ExifTool qw(:Public);
+
+our $opt_p;
+our $opt_t;
+getopts("p:t:");
+
+my $provider = $opt_p || "Unknown";
+my $imagetype = $opt_t || "";
+
+if(-t STDIN) {
+  say STDERR "$0:<stdin>: is a terminal";
+  exit 1;
+}
+
+my %options = (
+  handle => \*STDIN,
+  sep_char => "\t",
+  quote_char => undef,
+  escape_char => undef,
+  encoding_in => 'utf8',
+  names => 1
+);
+
+my $csv = Parse::CSV->new(%options);
+
+my $dc = "http://purl.org/dc/elements/1.1/";
+my $eur = "http://www.europeana.eu/schemas/ese/";
+my $abm = 'http://abmu.org/abm';
+
+my $xml = XML::Writer->new(
+  NAMESPACES => 1,
+  DATA_MODE => 1,
+  DATA_INDENT => 2,
+  ENCODING => 'utf-8',
+  PREFIX_MAP => {
+    $dc => 'dc',
+    $eur => 'eur',
+    $abm => 'abm'
+  },
+  FORCED_NS_DECLS => [$dc, $eur, $abm]
+);
+
+$xml->xmlDecl("utf-8");
+
+my $todo = read_file("TODO", binmode => ':utf8');
+$xml->comment($todo);
+
+$xml->startTag("norvegiana");
+
+while (my $raw = $csv->fetch) {
+
+  # Hopp over alt som mangler bilde og/eller artsnavn
+  next if(!$$raw{associatedMedia});
+  next if(!$$raw{scientificName});
+
+  my @images = split /\s*\|\s*/, $$raw{associatedMedia};
+  my $n = 1;
+  foreach my $image (@images) {
+    $image =~ s/^\s//;
+    $image =~ s/\s$//;
+
+    $xml->startTag("record");
+
+    # Identifikator, hopp over hvis vi ikke finner noe å bruke
+    my $id;
+    if($$raw{occurrenceID}) {
+      # $xml->dataElement([$dc, 'identifier'], $$raw{occurrenceID} . "-" . $n);
+      # $id = $$raw{occurrenceID};
+      $id = "$$raw{institutionCode}:$$raw{collectionCode}:$$raw{catalogNumber}"
+    } elsif($$raw{catalogNumber}) {
+      $id = "$$raw{institutionCode}:$$raw{collectionCode}:$$raw{catalogNumber}"
+    } else {
+      next;
+    }
+    $xml->dataElement([$dc, 'identifier'], "$id" . "-" . $n);
+    my $link = "https://data.gbif.no/resolver/$id";
+
+    # Beskrivelse
+    $xml->dataElement([$dc, "description"],
+      "$imagetype$$raw{scientificName}");
+
+    # Emneord
+    # $xml->dataElement([$dc, "subject"], undef);
+
+    # Medietype
+    $xml->dataElement([$eur, "type"], "IMAGE");
+
+    # Opprinnelig publisering
+    $xml->dataElement([$eur, "isShownAt"], $link);
+
+    # Digitalt objekt
+    $xml->dataElement([$eur, "isShownBy"], $image);
+
+    # Lisens
+    $xml->dataElement([$eur, "rights"], $$raw{_mediaLicense});
+
+    # Dataleverandør
+    $xml->dataElement([$eur, "dataProvider"], $provider);
+
+    # Kommune
+    if($$raw{county}) {
+      $xml->dataElement([$abm, "municipality"], $$raw{county});
+    }
+
+    # Stedsnavn
+    if($$raw{locality}) {
+      $xml->dataElement([$abm, "namedPlace"], $$raw{locality});
+    }
+
+    # Koordinater (abm:latlong) - decimalLatitude + decimalLongitude
+    if($$raw{decimalLatitude} && $$raw{decimalLongitude}) {
+      $xml->dataElement([$abm, "latLong"],
+        "$$raw{decimalLatitude},$$raw{decimalLongitude}");
+    }
+
+    # Datering (dc:date) - eventDate
+    $xml->dataElement([$dc, "date"], $$raw{eventDate});
+
+    # Digitalisering (dc:created) - sjekke exif??
+    # $xml->dataElement([$dc, "created"], undef);
+
+    # Opphavsperson (dc:creator) - eksponeres ikke gjennom MUSIT-dumpen
+    # $xml->dataElement([$dc, "creator"], undef);
+
+    $xml->endTag("record");
+  }
+}
+die("$csv->errstr\n") if($csv->errstr);
+
+$xml->endTag("norvegiana");
+$xml->end();
+
